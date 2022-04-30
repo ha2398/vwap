@@ -12,4 +12,6 @@ This section presents design choices and implementation details for the project.
 
 ### Parameters
 
+### Calculation Algorithm
+
 ### Tests
