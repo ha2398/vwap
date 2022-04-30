@@ -25,19 +25,20 @@ func main() {
 	// TODO: Receive these arguments as CLI parameters.
 	webSocketFeedEndpoint := "wss://ws-feed.exchange.coinbase.com"
 	subscriptionChannels := []string{"matches"}
-	tradingPairs := []string{"BTC-USD"}
+	tradingPairs := []string{"BTC-USD", "ETH-USD", "ETH-BTC"}
 	feedConn, err := feed.CreateSubscription(webSocketFeedEndpoint,
 		subscriptionChannels, tradingPairs)
 	if err != nil {
-		log.Fatalf("Error creating feed subscription: %v\n", err)
+		log.Fatalf("Error creating feed subscription: %v", err)
 		return
 	}
 	defer feedConn.Close()
 
 	// Create calculation engine.
-	vwapEngine, err := calc.NewEngine(feedConn)
+	windowSize := 200 // TODO: Receive as CLI parameter.
+	vwapEngine, err := calc.NewEngine(feedConn, tradingPairs, windowSize)
 	if err != nil {
-		log.Fatalf("Error creating new VWAP calculation engine: %v\n", err)
+		log.Fatalf("Error creating new VWAP calculation engine: %v", err)
 		return
 	}
 

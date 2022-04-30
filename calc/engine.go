@@ -3,6 +3,7 @@ package calc
 
 import (
 	"errors"
+	"fmt"
 	"log"
 
 	ws "github.com/gorilla/websocket"
@@ -15,18 +16,79 @@ const bufferedChannelSize int = 1000
 
 // Engine is the calculator engine for VWAP.
 type Engine struct {
+	// Connection to the WebSocket feed.
 	feedConn *ws.Conn
+
+	// Trading pairs to calculate VWAP for.
+	tradingPairs []string
+
+	// VWAP values for each trading pair, in the same order as they appear in
+	// the field tradingPairs.
+	vwapValues []interface{}
+
+	// Format string to use for printing VWAPs.
+	vwapLogFormat string
+
+	// Sliding window size.
+	windowSize int
+
+	// Sliding windows with calculation data for each trading pair.
+	windows map[string]*slidingWindow
 }
 
-func NewEngine(feedConn *ws.Conn) (*Engine, error) {
+// NewEngine creates a new VWAP calculation engine, using the given connection
+// to the WebSocket feed, the trading pairs to calculate VWAP for, and the size
+// of the sliding window to use for the algorithm.
+func NewEngine(
+	feedConn *ws.Conn, tradingPairs []string, windowSize int,
+) (*Engine, error) {
+	// Sanity checks.
 	if feedConn == nil {
-		return nil, errors.New("unable to create calculation engine with " +
-			"nil feed connection")
+		return nil, errors.New("nil feed connection")
+	}
+
+	if len(tradingPairs) < 1 {
+		return nil, errors.New("no trading pairs")
+	}
+
+	if windowSize < 1 {
+		return nil, fmt.Errorf("invalid window size %d, must be at least 1",
+			windowSize)
 	}
 
 	return &Engine{
-		feedConn: feedConn,
+		feedConn:      feedConn,
+		tradingPairs:  tradingPairs,
+		vwapValues:    make([]interface{}, len(tradingPairs)),
+		vwapLogFormat: getVWAPLogFormat(tradingPairs),
+		windows:       make(map[string]*slidingWindow),
+		windowSize:    windowSize,
 	}, nil
+}
+
+// getVWAPLogFormat returns the format string to use when printing VWAPs.
+func getVWAPLogFormat(tradingPairs []string) string {
+	formatString := ""
+	for i, pair := range tradingPairs {
+		formatString += fmt.Sprintf("%q: %%f", pair)
+
+		if i != len(tradingPairs)-1 {
+			formatString += ", "
+		}
+	}
+	return formatString
+}
+
+// getWindowForProduct returns the sliding window for the given product ID. If
+// no window is found, one is created and stored in the engine.
+func (e *Engine) getWindowForProduct(id string) *slidingWindow {
+	window, hasWindow := e.windows[id]
+	if !hasWindow {
+		window = newSlidingWindow(e.windowSize)
+		e.windows[id] = window
+	}
+
+	return window
 }
 
 // Run is responsible for reading from the WebSocket feed and calculating the
@@ -57,7 +119,7 @@ func (e *Engine) Run() chan struct{} {
 		}
 
 		if err != nil {
-			log.Printf("Error parsing match data: %v\n", err)
+			log.Printf("Error parsing match data: %v", err)
 			return
 		}
 
@@ -74,7 +136,31 @@ func (e *Engine) Run() chan struct{} {
 func (e *Engine) handleMatches(matchCh chan feed.Match, doneCh chan struct{}) {
 	defer close(doneCh)
 	for match := range matchCh {
-		// TODO
-		log.Printf("Match: %+v\n", match)
+
+		// Get the sliding window for the given trading pair.
+		slidingWindow := e.getWindowForProduct(match.ProductID)
+
+		// Update VWAP.
+		if err := slidingWindow.addMatch(match); err != nil {
+			log.Printf("Error adding match data for %q VWAP calculation: %v",
+				match.ProductID, err)
+			continue
+		}
+
+		// Print current VWAP for each pair.
+		// In case the data comes from a last_match message, we don't print
+		// it, since not all VWAPs may have been calculated at this point.
+		if !match.IsLast {
+			log.Print(e.getVWAPLog())
+		}
 	}
+}
+
+// getVWAPLog prints the current VWAP values for all trading pairs of interest.
+func (e *Engine) getVWAPLog() string {
+	logString := e.vwapLogFormat
+	for i, pair := range e.tradingPairs {
+		e.vwapValues[i] = e.getWindowForProduct(pair).getVWAP()
+	}
+	return fmt.Sprintf(logString, e.vwapValues...)
 }

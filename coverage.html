@@ -3,7 +3,7 @@
 <html>
 	<head>
 		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-		<title>Go Coverage Report</title>
+		<title>calc: Go Coverage Report</title>
 		<style>
 			body {
 				background: black;
@@ -55,6 +55,10 @@
 			<div id="nav">
 				<select id="files">
 				
+				<option value="file0">github.com/ha2398/vwap/calc/engine.go (28.9%)</option>
+				
+				<option value="file1">github.com/ha2398/vwap/calc/sliding_window.go (4.3%)</option>
+				
 				</select>
 			</div>
 			<div id="legend">
@@ -75,6 +79,293 @@
 			</div>
 		</div>
 		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">// Package calc provides an engine for calculating the VWAP for trading pairs.
+package calc
+
+import (
+        "errors"
+        "fmt"
+        "log"
+
+        ws "github.com/gorilla/websocket"
+        "github.com/ha2398/vwap/feed"
+)
+
+// Size of the buffered channel to use for passing match data from the reader
+// goroutine to the handler one.
+const bufferedChannelSize int = 1000
+
+// Engine is the calculator engine for VWAP.
+type Engine struct {
+        // Connection to the WebSocket feed.
+        feedConn *ws.Conn
+
+        // Trading pairs to calculate VWAP for.
+        tradingPairs []string
+
+        // VWAP values for each trading pair, in the same order as they appear in
+        // the field tradingPairs.
+        vwapValues []interface{}
+
+        // Format string to use for printing VWAPs.
+        vwapLogFormat string
+
+        // Sliding window size.
+        windowSize int
+
+        // Sliding windows with calculation data for each trading pair.
+        windows map[string]*slidingWindow
+}
+
+// NewEngine creates a new VWAP calculation engine, using the given connection
+// to the WebSocket feed, the trading pairs to calculate VWAP for, and the size
+// of the sliding window to use for the algorithm.
+func NewEngine(
+        feedConn *ws.Conn, tradingPairs []string, windowSize int,
+) (*Engine, error) <span class="cov0" title="0">{
+        // Sanity checks.
+        if feedConn == nil </span><span class="cov0" title="0">{
+                return nil, errors.New("nil feed connection")
+        }</span>
+
+        <span class="cov0" title="0">if len(tradingPairs) &lt; 1 </span><span class="cov0" title="0">{
+                return nil, errors.New("no trading pairs")
+        }</span>
+
+        <span class="cov0" title="0">if windowSize &lt; 1 </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("invalid window size %d, must be at least 1",
+                        windowSize)
+        }</span>
+
+        <span class="cov0" title="0">return &amp;Engine{
+                feedConn:      feedConn,
+                tradingPairs:  tradingPairs,
+                vwapValues:    make([]interface{}, len(tradingPairs)),
+                vwapLogFormat: getVWAPLogFormat(tradingPairs),
+                windows:       make(map[string]*slidingWindow),
+                windowSize:    windowSize,
+        }, nil</span>
+}
+
+// getVWAPLogFormat returns the format string to use when printing VWAPs.
+func getVWAPLogFormat(tradingPairs []string) string <span class="cov10" title="8">{
+        formatString := ""
+        for i, pair := range tradingPairs </span><span class="cov10" title="8">{
+                formatString += fmt.Sprintf("%q: %%f", pair)
+
+                if i != len(tradingPairs)-1 </span><span class="cov7" title="4">{
+                        formatString += ", "
+                }</span>
+        }
+        <span class="cov10" title="8">return formatString</span>
+}
+
+// getWindowForProduct returns the sliding window for the given product ID. If
+// no window is found, one is created and stored in the engine.
+func (e *Engine) getWindowForProduct(id string) *slidingWindow <span class="cov7" title="4">{
+        window, hasWindow := e.windows[id]
+        if !hasWindow </span><span class="cov0" title="0">{
+                window = newSlidingWindow(e.windowSize)
+                e.windows[id] = window
+        }</span>
+
+        <span class="cov7" title="4">return window</span>
+}
+
+// Run is responsible for reading from the WebSocket feed and calculating the
+// VWAP for each registered trading pair.
+func (e *Engine) Run() chan struct{} <span class="cov0" title="0">{
+        // The doneCh is used by the handler goroutine to indicate termination.
+        // The main goroutine listens for this event.
+        doneCh := make(chan struct{})
+
+        // The matchCh is used to communicate match data between the reader and
+        // the handler goroutines.
+        matchCh := make(chan feed.Match, bufferedChannelSize)
+
+        // Spin up goroutine to handle incoming matches.
+        go e.handleMatches(matchCh, doneCh)
+
+        // Spin up goroutine to read feed messages, parse them, and feed
+        // calculation data into the engine.
+        go feed.ReadMessages(e.feedConn, func(msg feed.Message, readErr error) </span><span class="cov0" title="0">{
+                if readErr != nil </span><span class="cov0" title="0">{
+                        close(matchCh)
+                        return
+                }</span>
+
+                <span class="cov0" title="0">match, isMatch, err := feed.ParseMatch(msg)
+                if !isMatch </span><span class="cov0" title="0">{
+                        return
+                }</span>
+
+                <span class="cov0" title="0">if err != nil </span><span class="cov0" title="0">{
+                        log.Printf("Error parsing match data: %v", err)
+                        return
+                }</span>
+
+                <span class="cov0" title="0">matchCh &lt;- match</span>
+        })
+
+        <span class="cov0" title="0">return doneCh</span>
+}
+
+// handleMatches takes all incoming matches data and updates the VWAP for each
+// of them.
+// The matchCh argument is used to receive match data, and the doneCh is used
+// to communicate the calculation termination.
+func (e *Engine) handleMatches(matchCh chan feed.Match, doneCh chan struct{}) <span class="cov0" title="0">{
+        defer close(doneCh)
+        for match := range matchCh </span><span class="cov0" title="0">{
+
+                // Get the sliding window for the given trading pair.
+                slidingWindow := e.getWindowForProduct(match.ProductID)
+
+                // Update VWAP.
+                if err := slidingWindow.addMatch(match); err != nil </span><span class="cov0" title="0">{
+                        log.Printf("Error adding match data for %q VWAP calculation: %v",
+                                match.ProductID, err)
+                        continue</span>
+                }
+
+                // Print current VWAP for each pair.
+                // In case the data comes from a last_match message, we don't print
+                // it, since not all VWAPs may have been calculated at this point.
+                <span class="cov0" title="0">if !match.IsLast </span><span class="cov0" title="0">{
+                        log.Print(e.getVWAPLog())
+                }</span>
+        }
+}
+
+// getVWAPLog prints the current VWAP values for all trading pairs of interest.
+func (e *Engine) getVWAPLog() string <span class="cov7" title="4">{
+        logString := e.vwapLogFormat
+        for i, pair := range e.tradingPairs </span><span class="cov7" title="4">{
+                e.vwapValues[i] = e.getWindowForProduct(pair).getVWAP()
+        }</span>
+        <span class="cov7" title="4">return fmt.Sprintf(logString, e.vwapValues...)</span>
+}
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">package calc
+
+import (
+        "errors"
+
+        "github.com/ha2398/vwap/feed"
+)
+
+// slidingWindow that maintains the partial VWAP calculation data for each
+// update, in a queue fashion.
+//
+// Since VWAP is SUM_i(price_i * size_i) / SUM_i(size_i), to calculate the
+// VWAP on each update, we have the following:
+//                 1) If the sliding window has the desired amount of elements: in this
+// case a new update means the oldest data must be removed from the
+// calculation, while the new data must be incorporated.
+//                2) If the sliding window does not have the desired amount of elements:
+// in this case we simply add the new data to the result.
+//
+// In both these cases, the update data is added to the queue, so that the
+// sliding window keeps moving when needed.
+type slidingWindow struct {
+        // Queue of partial VWAP calculation data.
+        data chan vwapPartialData
+
+        // Current length.
+        size, currentLength int
+
+        // Indicates if the desired number of elements has been reached.
+        isWindowFull bool
+
+        // Current VWAP.
+        vwap float64
+
+        // Current sums used in the VWAP calculation.
+        // VWAP is vwapNumerator / vwapDenominator
+        vwapNumerator, vwapDenominator float64
+}
+
+func newSlidingWindow(size int) *slidingWindow <span class="cov0" title="0">{
+        return &amp;slidingWindow{
+                data: make(chan vwapPartialData, size),
+                size: size,
+        }
+}</span>
+
+func (w *slidingWindow) getVWAP() float64 <span class="cov10" title="4">{
+        return w.vwap
+}</span>
+
+func (w *slidingWindow) addMatch(match feed.Match) error <span class="cov0" title="0">{
+        currentPartial := getVWAPPartialDataFromMatch(match)
+
+        if w.isWindowFull </span><span class="cov0" title="0">{
+                // If we enter this case, the sliding window is full. Hence, drop the
+                // oldest entry and remove its data from the partial sums.
+                select </span>{
+                case oldestPartial := &lt;-w.data:<span class="cov0" title="0">
+                        // Success receiving from channel.
+                        w.subtractPartial(oldestPartial)</span>
+
+                default:<span class="cov0" title="0">
+                        // This should never happen. Error out.
+                        return errors.New("unable to receive from data channel")</span>
+                }
+        }
+
+        <span class="cov0" title="0">select </span>{
+        case w.data &lt;- currentPartial:<span class="cov0" title="0">
+                // Success pushing to channel.
+                w.addPartial(currentPartial)
+
+                // Only update the length until the window is full.
+                if !w.isWindowFull </span><span class="cov0" title="0">{
+                        w.currentLength += 1
+                        if w.currentLength == w.size </span><span class="cov0" title="0">{
+                                w.isWindowFull = true
+                        }</span>
+                }
+
+        default:<span class="cov0" title="0">
+                // This should never happen. Error out.
+                return errors.New("unable to send to data channel")</span>
+        }
+
+        // After updating the partial sums for VWAP calculation, update the VWAP
+        // value.
+        <span class="cov0" title="0">if w.vwapDenominator == 0 </span><span class="cov0" title="0">{
+                return errors.New("unable to calculate VWAP with zero denominator")
+        }</span>
+
+        <span class="cov0" title="0">w.vwap = w.vwapNumerator / w.vwapDenominator
+        return nil</span>
+}
+
+func (w *slidingWindow) addPartial(partialData vwapPartialData) <span class="cov0" title="0">{
+        w.vwapNumerator += partialData.product
+        w.vwapDenominator += partialData.size
+}</span>
+
+func (w *slidingWindow) subtractPartial(partialData vwapPartialData) <span class="cov0" title="0">{
+        w.vwapNumerator -= partialData.product
+        w.vwapDenominator -= partialData.size
+}</span>
+
+// vwapPartialData holds a pair of values, the product (price_i * size_i) and
+// the size_i, for a given update i.
+type vwapPartialData struct {
+        product, size float64
+}
+
+func getVWAPPartialDataFromMatch(match feed.Match) vwapPartialData <span class="cov0" title="0">{
+        return vwapPartialData{
+                product: match.Price * match.Size,
+                size:    match.Size,
+        }
+}</span>
+</pre>
 		
 		</div>
 	</body>

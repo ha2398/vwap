@@ -64,6 +64,7 @@ func newSubscribeMessage(channels, productIDs []string) Message {
 // Match represents the relevant data contained in a match for VWAP
 // calculation.
 type Match struct {
+	IsLast    bool // Indicates if this is data from a last_match message.
 	Price     float64
 	ProductID string
 	Side      string
@@ -94,6 +95,7 @@ func ParseMatch(msg Message) (Match, bool, error) {
 	}
 
 	return Match{
+		IsLast:    msgType == LastMatchType,
 		Price:     price,
 		ProductID: msg.GetValueForKey(ProductIDKey),
 		Side:      msg.GetValueForKey(SideKey),
@@ -114,7 +116,7 @@ func ReadMessages(conn *ws.Conn, messageCallback func(Message, error)) {
 		messageCallback(message, err)
 
 		if err != nil {
-			log.Fatalf("Error reading JSON WebSocket message: %v\n", err)
+			log.Fatalf("Error reading JSON WebSocket message: %v", err)
 			return
 		}
 	}
