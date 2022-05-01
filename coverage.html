@@ -55,9 +55,13 @@
 			<div id="nav">
 				<select id="files">
 				
-				<option value="file0">github.com/ha2398/vwap/calc/engine.go (28.9%)</option>
+				<option value="file0">github.com/ha2398/vwap/calc/engine.go (100.0%)</option>
 				
-				<option value="file1">github.com/ha2398/vwap/calc/sliding_window.go (4.3%)</option>
+				<option value="file1">github.com/ha2398/vwap/calc/sliding_window.go (96.0%)</option>
+				
+				<option value="file2">github.com/ha2398/vwap/feed/feed.go (86.7%)</option>
+				
+				<option value="file3">github.com/ha2398/vwap/feed/messages.go (100.0%)</option>
 				
 				</select>
 			</div>
@@ -123,22 +127,22 @@ type Engine struct {
 // of the sliding window to use for the algorithm.
 func NewEngine(
         feedConn *ws.Conn, tradingPairs []string, windowSize int,
-) (*Engine, error) <span class="cov0" title="0">{
+) (*Engine, error) <span class="cov6" title="9">{
         // Sanity checks.
-        if feedConn == nil </span><span class="cov0" title="0">{
+        if feedConn == nil </span><span class="cov1" title="1">{
                 return nil, errors.New("nil feed connection")
         }</span>
 
-        <span class="cov0" title="0">if len(tradingPairs) &lt; 1 </span><span class="cov0" title="0">{
+        <span class="cov6" title="8">if len(tradingPairs) &lt; 1 </span><span class="cov1" title="1">{
                 return nil, errors.New("no trading pairs")
         }</span>
 
-        <span class="cov0" title="0">if windowSize &lt; 1 </span><span class="cov0" title="0">{
+        <span class="cov6" title="7">if windowSize &lt; 1 </span><span class="cov1" title="1">{
                 return nil, fmt.Errorf("invalid window size %d, must be at least 1",
                         windowSize)
         }</span>
 
-        <span class="cov0" title="0">return &amp;Engine{
+        <span class="cov5" title="6">return &amp;Engine{
                 feedConn:      feedConn,
                 tradingPairs:  tradingPairs,
                 vwapValues:    make([]interface{}, len(tradingPairs)),
@@ -149,33 +153,33 @@ func NewEngine(
 }
 
 // getVWAPLogFormat returns the format string to use when printing VWAPs.
-func getVWAPLogFormat(tradingPairs []string) string <span class="cov10" title="8">{
+func getVWAPLogFormat(tradingPairs []string) string <span class="cov7" title="14">{
         formatString := ""
-        for i, pair := range tradingPairs </span><span class="cov10" title="8">{
+        for i, pair := range tradingPairs </span><span class="cov8" title="17">{
                 formatString += fmt.Sprintf("%q: %%f", pair)
 
-                if i != len(tradingPairs)-1 </span><span class="cov7" title="4">{
+                if i != len(tradingPairs)-1 </span><span class="cov6" title="7">{
                         formatString += ", "
                 }</span>
         }
-        <span class="cov10" title="8">return formatString</span>
+        <span class="cov7" title="14">return formatString</span>
 }
 
 // getWindowForProduct returns the sliding window for the given product ID. If
 // no window is found, one is created and stored in the engine.
-func (e *Engine) getWindowForProduct(id string) *slidingWindow <span class="cov7" title="4">{
+func (e *Engine) getWindowForProduct(id string) *slidingWindow <span class="cov10" title="30">{
         window, hasWindow := e.windows[id]
-        if !hasWindow </span><span class="cov0" title="0">{
+        if !hasWindow </span><span class="cov6" title="9">{
                 window = newSlidingWindow(e.windowSize)
                 e.windows[id] = window
         }</span>
 
-        <span class="cov7" title="4">return window</span>
+        <span class="cov10" title="30">return window</span>
 }
 
 // Run is responsible for reading from the WebSocket feed and calculating the
 // VWAP for each registered trading pair.
-func (e *Engine) Run() chan struct{} <span class="cov0" title="0">{
+func (e *Engine) Run() chan struct{} <span class="cov1" title="1">{
         // The doneCh is used by the handler goroutine to indicate termination.
         // The main goroutine listens for this event.
         doneCh := make(chan struct{})
@@ -189,41 +193,40 @@ func (e *Engine) Run() chan struct{} <span class="cov0" title="0">{
 
         // Spin up goroutine to read feed messages, parse them, and feed
         // calculation data into the engine.
-        go feed.ReadMessages(e.feedConn, func(msg feed.Message, readErr error) </span><span class="cov0" title="0">{
-                if readErr != nil </span><span class="cov0" title="0">{
+        go feed.ReadMessages(e.feedConn, func(msg feed.Message, readErr error) </span><span class="cov6" title="8">{
+                if readErr != nil </span><span class="cov1" title="1">{
                         close(matchCh)
                         return
                 }</span>
 
-                <span class="cov0" title="0">match, isMatch, err := feed.ParseMatch(msg)
-                if !isMatch </span><span class="cov0" title="0">{
+                <span class="cov6" title="7">match, isMatch, err := feed.ParseMatch(msg)
+                if !isMatch </span><span class="cov1" title="1">{
                         return
                 }</span>
 
-                <span class="cov0" title="0">if err != nil </span><span class="cov0" title="0">{
+                <span class="cov5" title="6">if err != nil </span><span class="cov1" title="1">{
                         log.Printf("Error parsing match data: %v", err)
                         return
                 }</span>
 
-                <span class="cov0" title="0">matchCh &lt;- match</span>
+                <span class="cov5" title="5">matchCh &lt;- match</span>
         })
 
-        <span class="cov0" title="0">return doneCh</span>
+        <span class="cov1" title="1">return doneCh</span>
 }
 
 // handleMatches takes all incoming matches data and updates the VWAP for each
 // of them.
 // The matchCh argument is used to receive match data, and the doneCh is used
 // to communicate the calculation termination.
-func (e *Engine) handleMatches(matchCh chan feed.Match, doneCh chan struct{}) <span class="cov0" title="0">{
+func (e *Engine) handleMatches(matchCh chan feed.Match, doneCh chan struct{}) <span class="cov5" title="5">{
         defer close(doneCh)
-        for match := range matchCh </span><span class="cov0" title="0">{
-
+        for match := range matchCh </span><span class="cov7" title="10">{
                 // Get the sliding window for the given trading pair.
                 slidingWindow := e.getWindowForProduct(match.ProductID)
 
                 // Update VWAP.
-                if err := slidingWindow.addMatch(match); err != nil </span><span class="cov0" title="0">{
+                if err := slidingWindow.addMatch(match); err != nil </span><span class="cov1" title="1">{
                         log.Printf("Error adding match data for %q VWAP calculation: %v",
                                 match.ProductID, err)
                         continue</span>
@@ -232,19 +235,19 @@ func (e *Engine) handleMatches(matchCh chan feed.Match, doneCh chan struct{}) <s
                 // Print current VWAP for each pair.
                 // In case the data comes from a last_match message, we don't print
                 // it, since not all VWAPs may have been calculated at this point.
-                <span class="cov0" title="0">if !match.IsLast </span><span class="cov0" title="0">{
+                <span class="cov6" title="9">if !match.IsLast </span><span class="cov4" title="4">{
                         log.Print(e.getVWAPLog())
                 }</span>
         }
 }
 
 // getVWAPLog prints the current VWAP values for all trading pairs of interest.
-func (e *Engine) getVWAPLog() string <span class="cov7" title="4">{
+func (e *Engine) getVWAPLog() string <span class="cov7" title="12">{
         logString := e.vwapLogFormat
-        for i, pair := range e.tradingPairs </span><span class="cov7" title="4">{
+        for i, pair := range e.tradingPairs </span><span class="cov8" title="18">{
                 e.vwapValues[i] = e.getWindowForProduct(pair).getVWAP()
         }</span>
-        <span class="cov7" title="4">return fmt.Sprintf(logString, e.vwapValues...)</span>
+        <span class="cov7" title="12">return fmt.Sprintf(logString, e.vwapValues...)</span>
 }
 </pre>
 		
@@ -287,43 +290,49 @@ type slidingWindow struct {
         vwapNumerator, vwapDenominator float64
 }
 
-func newSlidingWindow(size int) *slidingWindow <span class="cov0" title="0">{
-        return &amp;slidingWindow{
+func newSlidingWindow(size int) *slidingWindow <span class="cov8" title="13">{
+        // The size must have already been checked when creating the engine, but
+        // we do it again here to be safe.
+        if size &lt; 1 </span><span class="cov3" title="2">{
+                size = 1
+        }</span>
+
+        <span class="cov8" title="13">return &amp;slidingWindow{
                 data: make(chan vwapPartialData, size),
                 size: size,
-        }
-}</span>
+        }</span>
+}
 
-func (w *slidingWindow) getVWAP() float64 <span class="cov10" title="4">{
+func (w *slidingWindow) getVWAP() float64 <span class="cov10" title="18">{
         return w.vwap
 }</span>
 
-func (w *slidingWindow) addMatch(match feed.Match) error <span class="cov0" title="0">{
+func (w *slidingWindow) addMatch(match feed.Match) error <span class="cov9" title="14">{
         currentPartial := getVWAPPartialDataFromMatch(match)
 
-        if w.isWindowFull </span><span class="cov0" title="0">{
+        if w.isWindowFull </span><span class="cov4" title="3">{
                 // If we enter this case, the sliding window is full. Hence, drop the
                 // oldest entry and remove its data from the partial sums.
                 select </span>{
-                case oldestPartial := &lt;-w.data:<span class="cov0" title="0">
+                case oldestPartial := &lt;-w.data:<span class="cov3" title="2">
                         // Success receiving from channel.
                         w.subtractPartial(oldestPartial)</span>
 
-                default:<span class="cov0" title="0">
+                default:<span class="cov1" title="1">
                         // This should never happen. Error out.
                         return errors.New("unable to receive from data channel")</span>
                 }
         }
 
-        <span class="cov0" title="0">select </span>{
-        case w.data &lt;- currentPartial:<span class="cov0" title="0">
+        <span class="cov8" title="13">select </span>{
+        case w.data &lt;- currentPartial:<span class="cov8" title="13">
                 // Success pushing to channel.
                 w.addPartial(currentPartial)
 
                 // Only update the length until the window is full.
-                if !w.isWindowFull </span><span class="cov0" title="0">{
+                if !w.isWindowFull </span><span class="cov8" title="11">{
                         w.currentLength += 1
-                        if w.currentLength == w.size </span><span class="cov0" title="0">{
+                        if w.currentLength == w.size </span><span class="cov3" title="2">{
                                 w.isWindowFull = true
                         }</span>
                 }
@@ -335,20 +344,20 @@ func (w *slidingWindow) addMatch(match feed.Match) error <span class="cov0" titl
 
         // After updating the partial sums for VWAP calculation, update the VWAP
         // value.
-        <span class="cov0" title="0">if w.vwapDenominator == 0 </span><span class="cov0" title="0">{
+        <span class="cov8" title="13">if w.vwapDenominator == 0 </span><span class="cov3" title="2">{
                 return errors.New("unable to calculate VWAP with zero denominator")
         }</span>
 
-        <span class="cov0" title="0">w.vwap = w.vwapNumerator / w.vwapDenominator
+        <span class="cov8" title="11">w.vwap = w.vwapNumerator / w.vwapDenominator
         return nil</span>
 }
 
-func (w *slidingWindow) addPartial(partialData vwapPartialData) <span class="cov0" title="0">{
+func (w *slidingWindow) addPartial(partialData vwapPartialData) <span class="cov8" title="13">{
         w.vwapNumerator += partialData.product
         w.vwapDenominator += partialData.size
 }</span>
 
-func (w *slidingWindow) subtractPartial(partialData vwapPartialData) <span class="cov0" title="0">{
+func (w *slidingWindow) subtractPartial(partialData vwapPartialData) <span class="cov3" title="2">{
         w.vwapNumerator -= partialData.product
         w.vwapDenominator -= partialData.size
 }</span>
@@ -359,12 +368,165 @@ type vwapPartialData struct {
         product, size float64
 }
 
-func getVWAPPartialDataFromMatch(match feed.Match) vwapPartialData <span class="cov0" title="0">{
+func getVWAPPartialDataFromMatch(match feed.Match) vwapPartialData <span class="cov9" title="14">{
         return vwapPartialData{
                 product: match.Price * match.Size,
                 size:    match.Size,
         }
 }</span>
+</pre>
+		
+		<pre class="file" id="file2" style="display: none">// Package feed provides the object model and operations for sending and
+// receiving WebSocket messages through the Coinbase exchange feed.
+package feed
+
+import (
+        "fmt"
+        "log"
+
+        ws "github.com/gorilla/websocket"
+)
+
+// CreateSubscription takes as arguments the WebSocket endpoint to connect to,
+// the channels to subscribe to, and product IDs of interest. It creates and
+// returns a connection to the given endpoint, and subscribes to the given
+// channels/products.
+func CreateSubscription(
+        endpoint string, channels, productIDs []string,
+) (*ws.Conn, error) <span class="cov6" title="3">{
+        // Connect to WebSocket endpoint.
+        c, _, err := ws.DefaultDialer.Dial(endpoint, nil)
+        if err != nil </span><span class="cov1" title="1">{
+                return nil, fmt.Errorf("error dialing WebSocket endpoint %q: %v",
+                        endpoint, err)
+        }</span>
+
+        // Subscribe to channels.
+        <span class="cov4" title="2">subscribeMessage := newSubscribeMessage(channels, productIDs)
+        if err := c.WriteJSON(subscribeMessage); err != nil </span><span class="cov0" title="0">{
+                c.Close()
+                return nil, fmt.Errorf("error writing subscribe message to WebSocket "+
+                        "endpoint: %v", err)
+        }</span>
+
+        <span class="cov4" title="2">return c, nil</span>
+}
+
+// ReadMessages takes a WebSocket connection and reads incoming messages from
+// it. For each message received, it calls the messageCallback function.
+func ReadMessages(conn *ws.Conn, messageCallback func(Message, error)) <span class="cov1" title="1">{
+        for </span><span class="cov10" title="7">{
+                var message Message
+                err := conn.ReadJSON(&amp;message)
+                messageCallback(message, err)
+
+                if err != nil </span><span class="cov1" title="1">{
+                        log.Printf("Error reading JSON WebSocket message: %v", err)
+                        return
+                }</span>
+        }
+}
+</pre>
+		
+		<pre class="file" id="file3" style="display: none">package feed
+
+import (
+        "fmt"
+        "strconv"
+)
+
+// Keys used in messages.
+const (
+        ChannelsKey   string = "channels"
+        MessageKey    string = "message"
+        PriceKey      string = "price"
+        ProductIDKey  string = "product_id"
+        ProductIDsKey string = "product_ids"
+        SideKey       string = "side"
+        SizeKey       string = "size"
+        TypeKey       string = "type"
+)
+
+// Message types.
+const (
+        ErrorType     string = "error"
+        MatchType     string = "match"
+        LastMatchType string = "last_match"
+        SubscribeType string = "subscribe"
+        UnknownType   string = "unknown"
+)
+
+//
+// Messages.
+//
+
+type Message map[string]interface{}
+
+func (m *Message) GetValueForKey(key string) string <span class="cov10" title="16">{
+        if m == nil </span><span class="cov1" title="1">{
+                return ""
+        }</span>
+
+        <span class="cov9" title="15">rawValue, hasKey := (*m)[key]
+        if !hasKey </span><span class="cov4" title="3">{
+                return ""
+        }</span>
+
+        <span class="cov9" title="12">value, ok := rawValue.(string)
+        if !ok </span><span class="cov1" title="1">{
+                return ""
+        }</span>
+
+        <span class="cov8" title="11">return value</span>
+}
+
+func newSubscribeMessage(channels, productIDs []string) Message <span class="cov3" title="2">{
+        return Message{
+                TypeKey:       SubscribeType,
+                ChannelsKey:   channels,
+                ProductIDsKey: productIDs,
+        }
+}</span>
+
+// Match represents the relevant data contained in a match for VWAP
+// calculation.
+type Match struct {
+        IsLast    bool // Indicates if this is data from a last_match message.
+        Price     float64
+        ProductID string
+        Size      float64
+}
+
+// ParseMatch tries and parses a Match from the given message passed as
+// argument. It returns the parsed match, a bool indicating if the given
+// message contains a match at all, and any error found in the parsing process.
+func ParseMatch(msg Message) (Match, bool, error) <span class="cov6" title="5">{
+        msgType := msg.GetValueForKey(TypeKey)
+        if msgType != MatchType &amp;&amp; msgType != LastMatchType </span><span class="cov3" title="2">{
+                return Match{}, false, nil
+        }</span>
+
+        <span class="cov4" title="3">priceStr := msg.GetValueForKey(PriceKey)
+        price, err := strconv.ParseFloat(priceStr, 64)
+        if err != nil </span><span class="cov1" title="1">{
+                return Match{}, true, fmt.Errorf("error parsing %q field: %v",
+                        PriceKey, err)
+        }</span>
+
+        <span class="cov3" title="2">sizeStr := msg.GetValueForKey(SizeKey)
+        size, err := strconv.ParseFloat(sizeStr, 64)
+        if err != nil </span><span class="cov1" title="1">{
+                return Match{}, true, fmt.Errorf("error parsing %q field: %v",
+                        SizeKey, err)
+        }</span>
+
+        <span class="cov1" title="1">return Match{
+                IsLast:    msgType == LastMatchType,
+                Price:     price,
+                ProductID: msg.GetValueForKey(ProductIDKey),
+                Size:      size,
+        }, true, nil</span>
+}
 </pre>
 		
 		</div>

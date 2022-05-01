@@ -136,7 +136,6 @@ func (e *Engine) Run() chan struct{} {
 func (e *Engine) handleMatches(matchCh chan feed.Match, doneCh chan struct{}) {
 	defer close(doneCh)
 	for match := range matchCh {
-
 		// Get the sliding window for the given trading pair.
 		slidingWindow := e.getWindowForProduct(match.ProductID)
 

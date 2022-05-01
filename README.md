@@ -1,6 +1,6 @@
 # vwap
 
-Code evaluation for ZeroHash
+Real-time VWAP (volume-weighted average price) calculation engine.
 
 ## Usage
 

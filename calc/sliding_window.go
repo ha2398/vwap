@@ -38,6 +38,12 @@ type slidingWindow struct {
 }
 
 func newSlidingWindow(size int) *slidingWindow {
+	// The size must have already been checked when creating the engine, but
+	// we do it again here to be safe.
+	if size < 1 {
+		size = 1
+	}
+
 	return &slidingWindow{
 		data: make(chan vwapPartialData, size),
 		size: size,

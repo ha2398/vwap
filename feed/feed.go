@@ -4,6 +4,7 @@ package feed
 
 import (
 	"fmt"
+	"log"
 
 	ws "github.com/gorilla/websocket"
 )
@@ -31,4 +32,19 @@ func CreateSubscription(
 	}
 
 	return c, nil
+}
+
+// ReadMessages takes a WebSocket connection and reads incoming messages from
+// it. For each message received, it calls the messageCallback function.
+func ReadMessages(conn *ws.Conn, messageCallback func(Message, error)) {
+	for {
+		var message Message
+		err := conn.ReadJSON(&message)
+		messageCallback(message, err)
+
+		if err != nil {
+			log.Printf("Error reading JSON WebSocket message: %v", err)
+			return
+		}
+	}
 }

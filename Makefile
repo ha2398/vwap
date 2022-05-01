@@ -17,7 +17,7 @@ install: build
 	cp ./vwap $(GOPATH)/bin/
 
 test:
-	$(GOTEST) ./... -v -race -count=1 -coverprofile cover.out
+	$(GOTEST) ./... --tags=unit,integration -v -race -count=1 -coverprofile cover.out
 	$(GOTOOL) cover -html=cover.out -o coverage.html
 
 clean: 

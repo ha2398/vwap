@@ -2,10 +2,7 @@ package feed
 
 import (
 	"fmt"
-	"log"
 	"strconv"
-
-	ws "github.com/gorilla/websocket"
 )
 
 // Keys used in messages.
@@ -67,7 +64,6 @@ type Match struct {
 	IsLast    bool // Indicates if this is data from a last_match message.
 	Price     float64
 	ProductID string
-	Side      string
 	Size      float64
 }
 
@@ -98,26 +94,6 @@ func ParseMatch(msg Message) (Match, bool, error) {
 		IsLast:    msgType == LastMatchType,
 		Price:     price,
 		ProductID: msg.GetValueForKey(ProductIDKey),
-		Side:      msg.GetValueForKey(SideKey),
 		Size:      size,
 	}, true, nil
-}
-
-//
-// Message methods.
-//
-
-// ReadMessages takes a WebSocket connection and reads incoming messages from
-// it. For each message received, it calls the messageCallback function.
-func ReadMessages(conn *ws.Conn, messageCallback func(Message, error)) {
-	for {
-		var message Message
-		err := conn.ReadJSON(&message)
-		messageCallback(message, err)
-
-		if err != nil {
-			log.Fatalf("Error reading JSON WebSocket message: %v", err)
-			return
-		}
-	}
 }
