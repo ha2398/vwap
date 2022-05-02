@@ -65,9 +65,9 @@ In order to allow for increased throughput of incoming WebSocket messages, one `
 
 ### Calculation Algorithm
 
-The VWAP of a product over a window of `n` data points is defined as $\frac{\sum_{i=1}^{n} P_i * Q_i}{\sum_{i=1}^{n}Q_i} $, where `P_i` and `Q_i` are the price and quantity of a given data point `i`. Since we would like to calculate the VWAP for a sliding window, for every new data point, we also want to minimize the cost of performing this calculation, as it will be executed repeatedly.
+The VWAP of a product over a window of `n` data points is defined as `SUM(P_i * Q_i) / SUM(Q_i)`, where `P_i` and `Q_i` are the price and quantity of a given data point `i`. Since we would like to calculate the VWAP for a sliding window, for every new data point, we also want to minimize the cost of performing this calculation, as it will be executed repeatedly.
 
-By keeping track of the numerator and denominator for the fraction that calculates the VWAP, we can incorporate a new data point `j` into the calculation by adding its contribution to both the numerator and to the denominator. In addition, if the sliding window has reached its limit size, it will discard its oldest entry, meaning that we have to subtract its contribution from the numerator and from the denominator. Hence, we have that $VWAP_j = \frac{{\sum P*Q} -{P*Q}_{old} + {P*Q}_{new}}{{\sum Q} - Q_{old} + Q_{new}} $.
+By keeping track of the numerator and denominator for the fraction that calculates the VWAP, we can incorporate a new data point `j` into the calculation by adding its contribution to both the numerator and to the denominator. In addition, if the sliding window has reached its limit size, it will discard its oldest entry, meaning that we have to subtract its contribution from the numerator and from the denominator. Hence, we have that `VWAP_j = (SUM(P*Q) - (P*Q)_old + (P*Q)_j) / (SUM(Q) - Q_old + Q_j)`.
 
 This calculation method has been implemented using a channel, which behaves as a queue for the sliding window, allowing us to easily pop the oldest data point and push the new one.
 
@@ -78,3 +78,5 @@ Unit and integration tests have been added for the project. To run them, execute
 ```
 make test
 ```
+
+The `coverage.html` file can be opened in a browser to display details about the test coverage for each file.
