@@ -4,7 +4,7 @@ Real-time VWAP (volume-weighted average price) calculation engine.
 
 ## Dependencies
 
-To use this repository, the `make` utility is required. In addition, if you'd like to build the project and execute locally on your machine, Go v1.17+ is required. However, building and executing can also be done through Docker.
+To use this repository, the `make` utility is required. In addition, if you'd like to build the project and execute locally on your machine, Go v1.17+ and `golangci-lint` are required. However, building and executing can also be done through Docker.
 
 ## Build
 
