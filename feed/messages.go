@@ -12,6 +12,7 @@ const (
 	PriceKey      string = "price"
 	ProductIDKey  string = "product_id"
 	ProductIDsKey string = "product_ids"
+	ReasonKey     string = "reason"
 	SideKey       string = "side"
 	SizeKey       string = "size"
 	TypeKey       string = "type"

@@ -18,16 +18,14 @@ func createInterruptChannel() chan os.Signal {
 }
 
 func main() {
+	log.SetFlags(0)
+	initFlags()
+
 	// Create channel to detect interrupt signals.
 	interruptCh := createInterruptChannel()
 
 	// Create connection to feed and subscribe to channels of interest.
-	// TODO: Receive these arguments as CLI parameters.
-	webSocketFeedEndpoint := "wss://ws-feed.exchange.coinbase.com"
-	subscriptionChannels := []string{"matches"}
-	tradingPairs := []string{"BTC-USD", "ETH-USD", "ETH-BTC"}
-	feedConn, err := feed.CreateSubscription(webSocketFeedEndpoint,
-		subscriptionChannels, tradingPairs)
+	feedConn, err := feed.CreateSubscription(feedEndpoint, tradingPairs)
 	if err != nil {
 		log.Fatalf("Error creating feed subscription: %v", err)
 		return
@@ -35,7 +33,6 @@ func main() {
 	defer feedConn.Close()
 
 	// Create calculation engine.
-	windowSize := 200 // TODO: Receive as CLI parameter.
 	vwapEngine, err := calc.NewEngine(feedConn, tradingPairs, windowSize)
 	if err != nil {
 		log.Fatalf("Error creating new VWAP calculation engine: %v", err)

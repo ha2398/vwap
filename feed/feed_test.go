@@ -43,36 +43,33 @@ func Test_CreateSubscription(t *testing.T) {
 	echoEndpoint := strings.Replace(echoServer.URL, "http", "ws", 1)
 
 	testCases := []struct {
-		desc                 string
-		endpoint             string
-		channels, productIDs []string
-		expectedError        error
+		desc          string
+		endpoint      string
+		productIDs    []string
+		expectedError error
 	}{
 		{
-			desc:          "no channels and products, empty endpoint",
+			desc:          "no products, empty endpoint",
 			endpoint:      "",
-			channels:      []string{},
 			productIDs:    []string{},
 			expectedError: errors.New("error dialing WebSocket endpoint \"\": malformed ws or wss URL"),
 		},
 		{
-			desc:          "no channels and products, valid endpoint",
+			desc:          "no products, valid endpoint",
 			endpoint:      echoEndpoint,
-			channels:      []string{},
 			productIDs:    []string{},
 			expectedError: nil,
 		},
 		{
-			desc:          "valid endpoint, channels and products",
+			desc:          "valid endpoint and products",
 			endpoint:      echoEndpoint,
-			channels:      []string{"channel1", "channel2"},
 			productIDs:    []string{"product1", "product2"},
 			expectedError: nil,
 		},
 	}
 
 	for _, tc := range testCases {
-		conn, err := CreateSubscription(tc.endpoint, tc.channels, tc.productIDs)
+		conn, err := CreateSubscription(tc.endpoint, tc.productIDs)
 
 		assert.Equal(t, tc.expectedError, err,
 			"For test %q, got unexpected error value", tc.desc)
@@ -152,4 +149,41 @@ func Test_ReadMessages(t *testing.T) {
 	})
 
 	assert.Equal(t, "hello world", output, "Got wrong result")
+}
+
+func Test_ReadMessagesError(t *testing.T) {
+	// Spin up test server.
+	testServerHandler := func(w http.ResponseWriter, r *http.Request) {
+		wsUpgrader := ws.Upgrader{}
+		c, err := wsUpgrader.Upgrade(w, r, nil)
+		if err != nil {
+			t.Errorf("Error upgrading HTTP connection to WebSocket: %v", err)
+			return
+		}
+
+		defer c.Close()
+
+		msg := Message{
+			TypeKey: ErrorType,
+		}
+		err = c.WriteJSON(msg)
+		if err != nil {
+			t.Errorf("Error writing message in test server: %v", err)
+		}
+	}
+
+	testServer := httptest.NewServer(http.HandlerFunc(testServerHandler))
+	defer testServer.Close()
+	endpoint := strings.Replace(testServer.URL, "http", "ws", 1)
+
+	c, _, err := ws.DefaultDialer.Dial(endpoint, nil)
+	if err != nil {
+		t.Fatalf("Error dialing test WebSocket server: %v", err)
+		return
+	}
+
+	// output will be built using the individual messages received from the server.
+	ReadMessages(c, func(msg Message, err error) {
+		assert.NotNil(t, err)
+	})
 }

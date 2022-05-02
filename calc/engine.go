@@ -147,11 +147,7 @@ func (e *Engine) handleMatches(matchCh chan feed.Match, doneCh chan struct{}) {
 		}
 
 		// Print current VWAP for each pair.
-		// In case the data comes from a last_match message, we don't print
-		// it, since not all VWAPs may have been calculated at this point.
-		if !match.IsLast {
-			log.Print(e.getVWAPLog())
-		}
+		log.Print(e.getVWAPLog())
 	}
 }
 

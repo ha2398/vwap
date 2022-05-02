@@ -90,11 +90,18 @@ var engineTestMessages []feed.Message = []feed.Message{
 		"trade_id":       "id23123",
 		"type":           "match",
 	},
-}
-
-var expectedVWAPFinalValues []interface{} = []interface{}{
-	128.75,             // A-B
-	15.333333333333334, // C-D
+	feed.Message{ // Match for C-D, oldest data removed from window
+		"maker_order_id": "id4123",
+		"price":          "14",
+		"product_id":     "C-D",
+		"sequence":       "12394.1284912",
+		"side":           "sell",
+		"size":           "4",
+		"taker_order_id": "id8123",
+		"time":           "2022-05-01T18:09:24.450429Z",
+		"trade_id":       "id23123",
+		"type":           "match",
+	},
 }
 
 // testServerHandler spins up a test server that will simply echo all the
@@ -111,6 +118,15 @@ func testServerHandler(w http.ResponseWriter, r *http.Request) {
 	var msg feed.Message
 	err = c.ReadJSON(&msg)
 	if err != nil {
+		log.Printf("Error reading subscription request in test server: %v",
+			err)
+		return
+	}
+
+	err = c.WriteJSON(&msg)
+	if err != nil {
+		log.Printf("Error writing subscription response in test server: %v",
+			err)
 		return
 	}
 
@@ -124,15 +140,18 @@ func testServerHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func Test_EngineRun(t *testing.T) {
+	var expectedVWAPFinalValues []interface{} = []interface{}{
+		128.75,             // A-B
+		18.533333333333335, // C-D
+	}
+
 	// Spin up test servers.
 	server := httptest.NewServer(http.HandlerFunc(testServerHandler))
 	defer server.Close()
 	serverEndpoint := strings.Replace(server.URL, "http", "ws", 1)
-	subscriptionChannels := []string{"matches"}
 	tradingPairs := []string{"A-B", "C-D"}
 
-	feedConn, err := feed.CreateSubscription(serverEndpoint,
-		subscriptionChannels, tradingPairs)
+	feedConn, err := feed.CreateSubscription(serverEndpoint, tradingPairs)
 	if err != nil {
 		t.Fatalf("Error creating feed subscription: %v", err)
 		return

@@ -14,7 +14,7 @@ import (
 // returns a connection to the given endpoint, and subscribes to the given
 // channels/products.
 func CreateSubscription(
-	endpoint string, channels, productIDs []string,
+	endpoint string, productIDs []string,
 ) (*ws.Conn, error) {
 	// Connect to WebSocket endpoint.
 	c, _, err := ws.DefaultDialer.Dial(endpoint, nil)
@@ -24,7 +24,7 @@ func CreateSubscription(
 	}
 
 	// Subscribe to channels.
-	subscribeMessage := newSubscribeMessage(channels, productIDs)
+	subscribeMessage := newSubscribeMessage([]string{"matches"}, productIDs)
 	if err := c.WriteJSON(subscribeMessage); err != nil {
 		c.Close()
 		return nil, fmt.Errorf("error writing subscribe message to WebSocket "+
@@ -40,10 +40,20 @@ func ReadMessages(conn *ws.Conn, messageCallback func(Message, error)) {
 	for {
 		var message Message
 		err := conn.ReadJSON(&message)
-		messageCallback(message, err)
 
 		if err != nil {
-			log.Printf("Error reading JSON WebSocket message: %v", err)
+			err = fmt.Errorf("error reading JSON WebSocket message: %v", err)
+		} else {
+			messageType := message.GetValueForKey(TypeKey)
+			if messageType == ErrorType {
+				reason := message.GetValueForKey(ReasonKey)
+				err = fmt.Errorf("error message received: %s", reason)
+			}
+		}
+
+		messageCallback(message, err)
+		if err != nil {
+			log.Printf("Error reading messages: %v", err)
 			return
 		}
 	}

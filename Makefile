@@ -6,20 +6,40 @@ GOTEST=$(GOCMD) test
 GOLINT=golangci-lint run
 GOTOOL=$(GOCMD) tool
 
-all: install test
+IMAGE_NAME=ha2398/vwap
+EXEC_NAME=vwap
 
-build:
+# Run parameters.
+FEED_ENDPOINT?=wss://ws-feed.exchange.coinbase.com
+TRADING_PAIRS?=BTC-USD,ETH-USD,ETH-BTC
+WINDOW_SIZE?=200
+
+all: format install test
+
+format:
 	$(GOFMT) -w .
 	$(GOLINT)
-	$(GOBUILD) -o vwap .
+
+build:
+	$(GOBUILD) -o $(EXEC_NAME) .
 
 install: build
-	cp ./vwap $(GOPATH)/bin/
+	cp ./$(EXEC_NAME) $(GOPATH)/bin/
 
 test:
 	$(GOTEST) ./... --tags=unit,integration -v -race -count=1 -coverprofile cover.out
 	$(GOTOOL) cover -html=cover.out -o coverage.html
 
+docker/build:
+	docker build -t $(IMAGE_NAME) .
+
+docker/run:
+	docker run -i -t --name vwap --rm $(IMAGE_NAME) \
+		--feed-endpoint $(FEED_ENDPOINT) \
+		--trading-pairs $(TRADING_PAIRS) \
+		--window-size $(WINDOW_SIZE)
+
 clean: 
-	rm -f ./vwap
-	$(GOCLEAN) -i github.com/cyralinc/vwap/...
+	rm -f ./$(EXEC_NAME)
+	$(GOCLEAN) -i github.com/ha2398/vwap/...
+	docker rmi -f $(IMAGE_NAME)
