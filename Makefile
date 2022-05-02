@@ -30,6 +30,11 @@ test:
 	$(GOTEST) ./... --tags=unit,integration -v -race -count=1 -coverprofile cover.out
 	$(GOTOOL) cover -html=cover.out -o coverage.html
 
+run:
+	./$(EXEC_NAME) --feed-endpoint $(FEED_ENDPOINT) \
+		--trading-pairs $(TRADING_PAIRS) \
+		--window-size $(WINDOW_SIZE)
+
 docker/build:
 	docker build -t $(IMAGE_NAME) .
 
